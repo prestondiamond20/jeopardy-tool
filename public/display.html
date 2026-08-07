@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Jeopardy — Display</title>
+<style>
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:var(--body-font);display:flex;flex-direction:column;overflow:hidden;}
+  .board-wrap{flex:1;display:flex;flex-direction:column;padding:28px;gap:14px;}
+  .board-grid{flex:1;display:grid;grid-template-columns:repeat(5,1fr);grid-template-rows:auto repeat(5,1fr);gap:12px;}
+  .cat-header{background:var(--panel);border:1px solid var(--panel-border);border-radius:var(--radius);display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--accent);font-family:var(--display-font);font-weight:bold;font-size:clamp(14px,1.6vw,26px);text-transform:uppercase;text-align:center;padding:10px;}
+  .cat-header .icon{font-size:1.6em;margin-bottom:4px;}
+  .cell{background:var(--panel);border:1px solid var(--panel-border);border-radius:var(--radius);display:flex;align-items:center;justify-content:center;font-family:var(--display-font);font-weight:bold;color:var(--accent);font-size:clamp(20px,3vw,44px);}
+  .cell.answered{background:rgba(0,0,0,.35);color:transparent;}
+
+  .clue-view{flex:1;display:none;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:40px;gap:24px;}
+  .clue-view .cat{font-family:var(--display-font);color:var(--accent);font-size:clamp(20px,2.4vw,34px);letter-spacing:.03em;text-transform:uppercase;}
+  .clue-view img{max-width:70%;max-height:38vh;border-radius:12px;}
+  .clue-view .text{font-size:clamp(24px,3.4vw,48px);font-family:var(--display-font);max-width:1100px;}
+  .clue-view .choices{display:grid;grid-template-columns:1fr 1fr;gap:16px;width:100%;max-width:900px;}
+  .clue-view .choices div{background:var(--panel);border:2px solid var(--panel-border);border-radius:var(--radius);padding:18px;font-size:clamp(16px,1.8vw,26px);}
+  .buzzed-banner{display:flex;align-items:center;gap:16px;font-size:clamp(28px,4vw,56px);color:var(--good);font-weight:bold;animation:pop .3s ease;}
+  .buzzed-banner img{width:clamp(48px,5vw,80px);height:clamp(48px,5vw,80px);border-radius:50%;object-fit:cover;border:3px solid var(--good);}
+  @keyframes pop{from{transform:scale(.9);opacity:0;}to{transform:scale(1);opacity:1;}}
+
+  .scorebar{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;padding:16px 28px;background:var(--panel);border-top:3px solid var(--accent);}
+  .score-chip{background:rgba(255,255,255,.06);border:1px solid var(--panel-border);border-radius:20px;padding:8px 20px 8px 8px;font-size:clamp(14px,1.4vw,20px);display:flex;gap:10px;align-items:center;}
+  .score-chip img{width:clamp(28px,2.2vw,40px);height:clamp(28px,2.2vw,40px);border-radius:50%;object-fit:cover;}
+  .score-chip b{color:var(--accent);font-size:1.2em;}
+  .waiting{flex:1;display:flex;align-items:center;justify-content:center;font-family:var(--display-font);font-size:clamp(20px,2.4vw,32px);color:var(--muted);}
+</style>
+</head>
+<body data-theme="classic">
+
+<div class="board-wrap">
+  <div id="boardGrid" class="board-grid"></div>
+  <div id="clueView" class="clue-view"></div>
+  <div id="waitingMsg" class="waiting" style="display:none;">Waiting for the host to build a board...</div>
+</div>
+<div class="scorebar" id="scorebar"></div>
+
+<script src="theme.js"></script>
+<script src="sound.js"></script>
+<script>
+const ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host);
+let latestState = null;
+
+ws.addEventListener('message', (evt) => {
+  const msg = JSON.parse(evt.data);
+  if (msg.type === 'state'){
+    const prevActive = latestState ? JSON.stringify(latestState.active) : null;
+    const prevBuzzed = latestState ? latestState.buzzedId : null;
+    latestState = msg.state;
+    if (latestState.board){
+      if (latestState.board.theme === 'custom') applyTheme('custom', latestState.board.customTheme);
+      else if (latestState.board.theme) applyTheme(latestState.board.theme);
+    }
+    if (JSON.stringify(latestState.active) !== prevActive && latestState.phase === 'clue') SFX.reveal();
+    if (latestState.buzzedId && latestState.buzzedId !== prevBuzzed) SFX.buzz();
+    render();
+  }
+});
+
+function render(){
+  if (!latestState) return;
+  const board = latestState.board;
+  const boardGrid = document.getElementById('boardGrid');
+  const clueView = document.getElementById('clueView');
+  const waitingMsg = document.getElementById('waitingMsg');
+
+  if (!board){
+    boardGrid.style.display = 'none';
+    clueView.style.display = 'none';
+    waitingMsg.style.display = 'flex';
+  } else if (latestState.phase === 'clue' && latestState.active){
+    boardGrid.style.display = 'none';
+    waitingMsg.style.display = 'none';
+    clueView.style.display = 'flex';
+    const { catIdx, clueIdx } = latestState.active;
+    const cat = board.categories[catIdx];
+    const clue = cat.clues[clueIdx];
+    let html = `<div class="cat">${cat.icon ? escapeHtml(cat.icon)+' ' : ''}${escapeHtml(cat.name)} — $${clue.value}</div>`;
+    if (clue.image) html += `<img src="${clue.image}">`;
+    html += `<div class="text">${escapeHtml(clue.text||'')}</div>`;
+    if (clue.type === 'mc'){
+      html += `<div class="choices">${clue.choices.map(c => `<div>${escapeHtml(c)}</div>`).join('')}</div>`;
+    }
+    if (latestState.buzzedId){
+      const p = latestState.players[latestState.buzzedId];
+      html += `<div class="buzzed-banner">${p && p.avatar ? `<img src="${p.avatar}">` : ''}🔔 ${escapeHtml(p ? p.name : '???')}</div>`;
+    }
+    clueView.innerHTML = html;
+  } else {
+    waitingMsg.style.display = 'none';
+    clueView.style.display = 'none';
+    boardGrid.style.display = 'grid';
+    boardGrid.innerHTML = '';
+    board.categories.forEach(cat => {
+      const h = document.createElement('div');
+      h.className = 'cat-header';
+      h.innerHTML = `${cat.icon ? `<div class="icon">${escapeHtml(cat.icon)}</div>` : ''}<div>${escapeHtml(cat.name)}</div>`;
+      boardGrid.appendChild(h);
+    });
+    for (let qi = 0; qi < 5; qi++){
+      board.categories.forEach(cat => {
+        const clue = cat.clues[qi];
+        const cell = document.createElement('div');
+        cell.className = 'cell' + (clue.answered ? ' answered' : '');
+        cell.textContent = clue.answered ? '' : ('$' + clue.value);
+        boardGrid.appendChild(cell);
+      });
+    }
+  }
+
+  const scorebar = document.getElementById('scorebar');
+  const players = latestState.players || {};
+  scorebar.innerHTML = Object.values(players).map(p => `<div class="score-chip">${p.avatar ? `<img src="${p.avatar}">` : ''}${escapeHtml(p.name)} <b>${p.score}</b></div>`).join('') || '<div class="score-chip" style="opacity:.5;">Waiting for contestants to join...</div>';
+}
+
+function escapeHtml(s){ return (s||'').replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+</script>
+</body>
+</html>

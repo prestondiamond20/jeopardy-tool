@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Board Control — Host</title>
+<style>
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:var(--body-font);transition:background .3s;}
+  h1,h2,h3{font-family:var(--display-font);letter-spacing:.02em;margin:0;}
+  header{display:flex;align-items:center;justify-content:space-between;padding:14px 24px;background:var(--panel);border-bottom:3px solid var(--accent);flex-wrap:wrap;gap:10px;}
+  header h1{font-size:20px;color:var(--accent);}
+  header .right{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  nav button{background:none;border:1px solid var(--muted);color:var(--text);padding:8px 16px;border-radius:6px;cursor:pointer;font-size:14px;}
+  nav button.active{background:var(--accent);color:#111;border-color:var(--accent);font-weight:bold;}
+  #playerCount{font-size:13px;color:var(--muted);background:rgba(255,255,255,.06);padding:6px 12px;border-radius:20px;}
+  a.displayLink{color:var(--accent);font-size:13px;text-decoration:none;border:1px solid var(--accent-dim);padding:6px 12px;border-radius:20px;}
+  a.displayLink:hover{background:var(--accent);color:#111;}
+  main{padding:24px;max-width:1100px;margin:0 auto;}
+  .hint{color:var(--muted);font-size:13px;margin-bottom:16px;}
+
+  .theme-row{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap;}
+  .theme-row select{background:var(--panel);color:var(--text);border:1px solid var(--panel-border);border-radius:6px;padding:8px 10px;font-size:14px;}
+  .custom-colors{display:none;flex-wrap:wrap;gap:14px;align-items:center;background:var(--panel);border:1px solid var(--panel-border);border-radius:8px;padding:12px 16px;margin-bottom:18px;}
+  .custom-colors label{font-size:12px;color:var(--muted);display:flex;flex-direction:column;gap:4px;align-items:center;}
+  .custom-colors input[type=color]{width:44px;height:32px;border:none;border-radius:6px;background:none;cursor:pointer;}
+
+  .cat-block{background:var(--panel);border:1px solid var(--panel-border);border-radius:var(--radius);padding:16px;margin-bottom:16px;}
+  .cat-block .cat-header{display:flex;gap:10px;align-items:center;}
+  .cat-block input.catname{font-size:16px;font-weight:bold;background:transparent;border:none;border-bottom:2px solid var(--accent-dim);color:var(--accent);padding:4px 2px;width:260px;}
+  .cat-block input.caticon{width:52px;font-size:20px;text-align:center;background:transparent;border:none;border-bottom:2px solid var(--accent-dim);}
+  .clue-row{display:grid;grid-template-columns:70px 1fr 1fr 90px;gap:10px;margin-top:12px;align-items:start;}
+  .clue-row label{font-size:11px;color:var(--muted);display:block;margin-bottom:2px;}
+  .clue-row input[type=text], .clue-row input[type=number], .clue-row textarea, .clue-row select{
+    width:100%;background:rgba(0,0,0,.25);border:1px solid var(--panel-border);color:var(--text);border-radius:5px;padding:6px 8px;font-size:13px;
+  }
+  .clue-row textarea{resize:vertical;min-height:38px;}
+  .image-row{display:flex;gap:6px;align-items:center;margin-top:2px;}
+  .image-row button{flex-shrink:0;background:var(--muted);color:#111;border:none;border-radius:5px;padding:6px 8px;font-size:11px;cursor:pointer;}
+  .image-thumb{max-width:60px;max-height:40px;border-radius:4px;margin-top:4px;display:none;}
+  .choices-box{display:flex;flex-direction:column;gap:4px;}
+  .choices-box input{margin-bottom:2px;}
+  .mc-toggle{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);margin-top:4px;}
+  button.primary{background:var(--accent);color:#111;border:none;border-radius:6px;padding:10px 20px;font-weight:bold;cursor:pointer;font-size:14px;}
+  button.secondary{background:transparent;border:1px solid var(--muted);color:var(--text);border-radius:6px;padding:8px 14px;cursor:pointer;font-size:13px;}
+  button.danger{background:transparent;border:1px solid var(--bad);color:var(--bad);border-radius:6px;padding:8px 14px;cursor:pointer;font-size:13px;}
+  .actions-row{display:flex;gap:10px;margin-top:20px;flex-wrap:wrap;}
+  input[type=file]{display:none;}
+
+  #controlView{display:none;}
+  .board-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:24px;}
+  .board-cat-header{background:var(--panel);color:var(--accent);text-align:center;padding:10px 4px;font-weight:bold;font-size:13px;border-radius:6px;text-transform:uppercase;display:flex;align-items:center;justify-content:center;gap:6px;}
+  .board-cell{background:var(--panel);border:1px solid var(--panel-border);border-radius:6px;padding:18px 4px;text-align:center;font-size:22px;font-weight:bold;color:var(--accent);cursor:pointer;transition:transform .12s;}
+  .board-cell:hover{transform:scale(1.03);border-color:var(--accent);}
+  .board-cell.answered{color:#4a4a55;background:rgba(0,0,0,.3);cursor:default;}
+  .board-cell.answered:hover{transform:none;border-color:var(--panel-border);}
+
+  .clue-panel{background:var(--panel);border:2px solid var(--accent);border-radius:var(--radius);padding:24px;margin-bottom:24px;animation:pop .25s ease;}
+  @keyframes pop{from{transform:scale(.97);opacity:0;}to{transform:scale(1);opacity:1;}}
+  .clue-panel img#clueImage{max-width:100%;max-height:320px;display:block;margin:14px 0;border-radius:6px;}
+  .clue-text{font-size:26px;margin:10px 0;font-family:var(--display-font);line-height:1.4;}
+  .buzz-banner{display:flex;align-items:center;gap:14px;background:rgba(63,178,127,.15);border:2px solid var(--good);border-radius:10px;padding:14px 18px;margin:14px 0;animation:pop .3s ease;}
+  .buzz-avatar{width:48px;height:48px;border-radius:50%;object-fit:cover;border:2px solid var(--good);}
+  #buzzBannerText{font-size:20px;font-weight:bold;color:var(--good);font-family:var(--display-font);}
+  .buzz-status{font-size:15px;color:var(--accent);margin:10px 0;min-height:22px;}
+  .choice-list{margin:10px 0;padding-left:20px;}
+  .choice-list li{margin:4px 0;}
+  .choice-list li.correct{color:var(--good);font-weight:bold;}
+  .answer-box{background:rgba(63,178,127,.15);border:2px solid var(--good);border-radius:10px;padding:14px 18px;margin:14px 0;font-size:20px;font-weight:bold;color:var(--good);font-family:var(--display-font);animation:pop .3s ease;}
+
+  .scoreboard{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px;}
+  .player-card{background:var(--panel);border:1px solid var(--panel-border);border-radius:8px;padding:12px;position:relative;}
+  .player-card .name{font-weight:bold;margin-bottom:4px;display:flex;align-items:center;gap:6px;}
+  .player-card .avatar{width:22px;height:22px;border-radius:50%;object-fit:cover;flex-shrink:0;}
+  .player-card .dot{width:8px;height:8px;border-radius:50%;display:inline-block;background:var(--good);}
+  .player-card .dot.offline{background:var(--bad);}
+  .player-card .score{font-size:22px;color:var(--accent);margin-bottom:8px;}
+  .score-btns{display:flex;flex-wrap:wrap;gap:6px;}
+  .score-btns button{flex:1;min-width:50px;padding:6px;border-radius:5px;border:none;cursor:pointer;font-size:12px;font-weight:bold;}
+  .score-btns .plus{background:var(--good);color:white;}
+  .score-btns .minus{background:var(--bad);color:white;}
+  .score-btns .custom{background:var(--muted);color:#111;}
+  .kick-btn{position:absolute;top:8px;right:8px;background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;}
+  .kick-btn:hover{color:var(--bad);}
+
+  #urlBox{background:var(--panel);border:1px dashed var(--accent-dim);border-radius:8px;padding:12px 16px;margin-bottom:20px;font-size:14px;}
+  #urlBox code{color:var(--accent);}
+</style>
+</head>
+<body data-theme="classic">
+
+<header>
+  <h1>🏆 Board Control</h1>
+  <nav>
+    <button id="tabBuilder" class="active">Build Board</button>
+    <button id="tabControl">Run Game</button>
+  </nav>
+  <div class="right">
+    <span id="playerCount">0 contestants connected</span>
+    <a class="displayLink" id="displayLink" href="/display.html" target="_blank">Open Display (for OBS) ↗</a>
+  </div>
+</header>
+
+<main>
+  <div id="urlBox">Share this with contestants — they open it in a browser (phone or desktop): <code id="playerUrl">...</code></div>
+
+  <!-- BUILDER -->
+  <div id="builderView">
+    <div class="theme-row">
+      <label for="themeSelect"><b>Theme:</b></label>
+      <select id="themeSelect"></select>
+      <button class="secondary" id="exportBtn">Export Board (.json)</button>
+      <button class="secondary" id="importBtn">Import Board</button>
+      <input type="file" id="importFile" accept="application/json">
+    </div>
+    <div class="custom-colors" id="customColors">
+      <label>Background <input type="color" id="colorBg"></label>
+      <label>Panels <input type="color" id="colorPanel"></label>
+      <label>Accent <input type="color" id="colorAccent"></label>
+      <label>Text <input type="color" id="colorText"></label>
+      <label>Borders <input type="color" id="colorBorder"></label>
+    </div>
+    <p class="hint">Build your 5 categories. Give each an optional emoji icon. Each clue can be plain text and/or an image (upload a file, or paste a URL), and can optionally be multiple choice. Point values default to 200–1000 but you can change them.</p>
+    <div id="categories"></div>
+    <div class="actions-row">
+      <button class="primary" id="saveBoardBtn">Save Board &amp; Go to Run Game</button>
+      <button class="danger" id="resetBtn">Reset Everything</button>
+    </div>
+  </div>
+
+  <!-- CONTROL -->
+  <div id="controlView">
+    <div class="clue-panel" id="cluePanel" style="display:none;">
+      <div id="clueValueLabel" style="color:var(--accent);font-weight:bold;"></div>
+      <div class="clue-text" id="clueText"></div>
+      <img id="clueImage" style="display:none;">
+      <ol class="choice-list" id="choiceList" style="display:none;"></ol>
+      <div class="answer-box" id="answerBox" style="display:none;"></div>
+      <button class="secondary" id="revealAnswerBtn" style="display:none;">Reveal Answer</button>
+      <div id="buzzBanner" class="buzz-banner" style="display:none;">
+        <img id="buzzAvatar" class="buzz-avatar" style="display:none;">
+        <span id="buzzBannerText"></span>
+      </div>
+      <div class="buzz-status" id="buzzStatus"></div>
+      <div class="actions-row">
+        <button class="secondary" id="unlockBtn">Unlock Buzzers / Reset Buzz</button>
+        <button class="primary" id="closeClueBtn">Close Clue &amp; Back to Board</button>
+      </div>
+    </div>
+
+    <div class="actions-row" style="margin-top:0;margin-bottom:16px;">
+      <button class="danger" id="resetBtnControl">Reset Everything</button>
+    </div>
+
+    <h2 id="controlHeading">Board</h2>
+    <div class="board-grid" id="boardGrid"></div>
+
+    <h3 style="margin:20px 0 10px;">Scoreboard</h3>
+    <p class="hint">Green dot = connected. A player who refreshes or loses connection stays on the board (grayed dot) for a couple of minutes in case they rejoin.</p>
+    <div class="scoreboard" id="scoreboard"></div>
+  </div>
+</main>
+
+<script src="theme.js"></script>
+<script src="sound.js"></script>
+<script>
+const ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host);
+let latestState = null;
+let localBoard = null;
+let currentTheme = 'classic';
+let customTheme = { '--bg':'#071433', '--panel':'#0b1d4d', '--accent':'#f0c14b', '--text':'#f5f7ff', '--panel-border':'#22306b' };
+
+document.getElementById('playerUrl').textContent = location.origin + '/';
+
+// theme dropdown
+const themeSelect = document.getElementById('themeSelect');
+Object.entries(THEMES).forEach(([key, t]) => {
+  const opt = document.createElement('option');
+  opt.value = key; opt.textContent = t.label;
+  themeSelect.appendChild(opt);
+});
+const customOpt = document.createElement('option');
+customOpt.value = 'custom'; customOpt.textContent = 'Custom Colors...';
+themeSelect.appendChild(customOpt);
+
+function syncColorPickers(){
+  document.getElementById('colorBg').value = customTheme['--bg'];
+  document.getElementById('colorPanel').value = customTheme['--panel'];
+  document.getElementById('colorAccent').value = customTheme['--accent'];
+  document.getElementById('colorText').value = customTheme['--text'];
+  document.getElementById('colorBorder').value = customTheme['--panel-border'];
+}
+function applyCurrentTheme(){
+  document.getElementById('customColors').style.display = currentTheme === 'custom' ? 'flex' : 'none';
+  if (currentTheme === 'custom'){ syncColorPickers(); applyTheme('custom', customTheme); }
+  else applyTheme(currentTheme);
+}
+themeSelect.addEventListener('change', () => { currentTheme = themeSelect.value; applyCurrentTheme(); });
+[['colorBg','--bg'],['colorPanel','--panel'],['colorAccent','--accent'],['colorText','--text'],['colorBorder','--panel-border']].forEach(([id,varName]) => {
+  document.getElementById(id).addEventListener('input', (e) => {
+    customTheme[varName] = e.target.value;
+    applyTheme('custom', customTheme);
+  });
+});
+applyCurrentTheme();
+
+ws.addEventListener('open', () => ws.send(JSON.stringify({ type: 'host-join' })));
+
+let answerRevealed = false;
+let lastActiveKey = null;
+
+function syncLiveFlagsIntoLocalBoard(liveBoard){
+  if (!localBoard || !liveBoard) return;
+  liveBoard.categories.forEach((cat, ci) => {
+    const localCat = localBoard.categories[ci];
+    if (!localCat) return;
+    cat.clues.forEach((clue, qi) => {
+      const localClue = localCat.clues[qi];
+      if (!localClue) return;
+      localClue.answered = clue.answered;
+      localClue.revealed = clue.revealed;
+    });
+  });
+}
+
+ws.addEventListener('message', (evt) => {
+  const msg = JSON.parse(evt.data);
+  if (msg.type === 'state') {
+    const prevBuzzed = latestState ? latestState.buzzedId : null;
+    latestState = msg.state;
+    syncLiveFlagsIntoLocalBoard(latestState.board);
+    const activeKey = JSON.stringify(latestState.active);
+    if (activeKey !== lastActiveKey) { answerRevealed = false; lastActiveKey = activeKey; }
+    if (latestState.buzzedId && latestState.buzzedId !== prevBuzzed) SFX.buzz();
+    renderControl();
+  } else if (msg.type === 'full-board') {
+    if (msg.board) {
+      localBoard = msg.board;
+      currentTheme = msg.board.theme || 'classic';
+      themeSelect.value = currentTheme;
+      if (msg.board.customTheme) customTheme = Object.assign({}, customTheme, msg.board.customTheme);
+      applyCurrentTheme();
+      renderBuilderFromBoard(localBoard);
+      if (latestState) syncLiveFlagsIntoLocalBoard(latestState.board);
+    }
+  }
+});
+
+// ---------- BUILDER ----------
+const DEFAULT_VALUES = [200,400,600,800,1000];
+function blankClue(value){
+  return { value, type:'text', text:'', image:'', answer:'', choices:['','','',''], correctIndex:0, revealed:false, answered:false };
+}
+function blankCategory(name){
+  return { name, icon:'', clues: DEFAULT_VALUES.map(v => blankClue(v)) };
+}
+let builderData = Array.from({length:5}, (_,i) => blankCategory('Category ' + (i+1)));
+
+function renderBuilderFromBoard(board){
+  builderData = JSON.parse(JSON.stringify(board.categories));
+  builderData.forEach(c => {
+    if (c.icon === undefined) c.icon = '';
+    c.clues.forEach(clue => { if (clue.answer === undefined) clue.answer = ''; });
+  });
+  renderBuilder();
+}
+
+function renderBuilder(){
+  const container = document.getElementById('categories');
+  container.innerHTML = '';
+  builderData.forEach((cat, ci) => {
+    const block = document.createElement('div');
+    block.className = 'cat-block';
+    block.innerHTML = `<div class="cat-header">
+        <input class="caticon" data-ci="${ci}" data-field="icon" value="${escapeAttr(cat.icon||'')}" placeholder="⭐" maxlength="2">
+        <input class="catname" data-ci="${ci}" value="${escapeAttr(cat.name)}">
+      </div>`;
+    cat.clues.forEach((clue, qi) => {
+      const row = document.createElement('div');
+      row.className = 'clue-row';
+      row.innerHTML = `
+        <div><label>Points</label><input type="number" data-ci="${ci}" data-qi="${qi}" data-field="value" value="${clue.value}"></div>
+        <div><label>Question text</label><textarea data-ci="${ci}" data-qi="${qi}" data-field="text">${escapeHtml(clue.text)}</textarea></div>
+        <div>
+          <label>Image (optional)</label>
+          <div class="image-row">
+            <input type="text" placeholder="Paste a URL..." data-ci="${ci}" data-qi="${qi}" data-field="image" value="${escapeAttr(clue.image)}">
+            <button type="button" data-ci="${ci}" data-qi="${qi}" class="upload-btn">Upload</button>
+            <input type="file" accept="image/*" data-ci="${ci}" data-qi="${qi}" class="upload-file">
+          </div>
+          <img class="image-thumb" data-ci="${ci}" data-qi="${qi}" src="${escapeAttr(clue.image)}" style="display:${clue.image ? 'block':'none'};">
+          <label style="margin-top:8px;">Answer (hidden until you reveal it)</label>
+          <textarea data-ci="${ci}" data-qi="${qi}" data-field="answer" placeholder="What's the correct answer?" style="min-height:32px;">${escapeHtml(clue.answer || '')}</textarea>
+          <div class="mc-toggle"><input type="checkbox" data-ci="${ci}" data-qi="${qi}" data-field="mcToggle" ${clue.type==='mc'?'checked':''}> Multiple choice</div>
+          <div class="choices-box" data-ci="${ci}" data-qi="${qi}" style="display:${clue.type==='mc'?'flex':'none'};margin-top:6px;">
+            ${clue.choices.map((c,idx)=>`<input type="text" placeholder="Choice ${idx+1}" data-ci="${ci}" data-qi="${qi}" data-choiceidx="${idx}" value="${escapeAttr(c)}">`).join('')}
+            <label style="margin-top:4px;">Correct choice # (1-4)</label>
+            <input type="number" min="1" max="4" data-ci="${ci}" data-qi="${qi}" data-field="correctIndex" value="${clue.correctIndex+1}" style="width:60px;">
+          </div>
+        </div>
+        <div><label>&nbsp;</label><div style="font-size:11px;color:var(--muted);">Answered: ${clue.answered ? 'Yes' : 'No'}</div></div>
+      `;
+      block.appendChild(row);
+    });
+    container.appendChild(block);
+  });
+  container.querySelectorAll('input.catname').forEach(el => el.addEventListener('input', onCatNameChange));
+  container.querySelectorAll('input.caticon').forEach(el => el.addEventListener('input', onCatIconChange));
+  container.querySelectorAll('[data-field="value"], [data-field="text"], [data-field="answer"]').forEach(el => el.addEventListener('input', onFieldChange));
+  container.querySelectorAll('[data-field="image"]').forEach(el => el.addEventListener('input', onImageUrlChange));
+  container.querySelectorAll('[data-field="mcToggle"]').forEach(el => el.addEventListener('change', onMcToggle));
+  container.querySelectorAll('[data-choiceidx]').forEach(el => el.addEventListener('input', onChoiceChange));
+  container.querySelectorAll('[data-field="correctIndex"]').forEach(el => el.addEventListener('input', onCorrectIndexChange));
+  container.querySelectorAll('.upload-btn').forEach(el => el.addEventListener('click', () => {
+    container.querySelector(`.upload-file[data-ci="${el.dataset.ci}"][data-qi="${el.dataset.qi}"]`).click();
+  }));
+  container.querySelectorAll('.upload-file').forEach(el => el.addEventListener('change', onImageFileSelected));
+}
+
+function onCatNameChange(e){ builderData[e.target.dataset.ci].name = e.target.value; }
+function onCatIconChange(e){ builderData[e.target.dataset.ci].icon = e.target.value; }
+function onFieldChange(e){
+  const {ci, qi, field} = e.target.dataset;
+  builderData[ci].clues[qi][field] = field === 'value' ? Number(e.target.value) : e.target.value;
+}
+function onImageUrlChange(e){
+  const {ci, qi} = e.target.dataset;
+  builderData[ci].clues[qi].image = e.target.value;
+  const thumb = document.querySelector(`.image-thumb[data-ci="${ci}"][data-qi="${qi}"]`);
+  if (thumb){ thumb.src = e.target.value; thumb.style.display = e.target.value ? 'block' : 'none'; }
+}
+function onImageFileSelected(e){
+  const {ci, qi} = e.target.dataset;
+  const file = e.target.files[0];
+  if (!file) return;
+  const btn = document.querySelector(`.upload-btn[data-ci="${ci}"][data-qi="${qi}"]`);
+  const origLabel = btn.textContent;
+  btn.textContent = 'Uploading...';
+  btn.disabled = true;
+  const formData = new FormData();
+  formData.append('image', file);
+  fetch('/upload', { method: 'POST', body: formData })
+    .then(r => r.json())
+    .then(data => {
+      if (data.url){
+        builderData[ci].clues[qi].image = data.url;
+        const urlInput = document.querySelector(`input[type=text][data-field="image"][data-ci="${ci}"][data-qi="${qi}"]`);
+        const thumb = document.querySelector(`.image-thumb[data-ci="${ci}"][data-qi="${qi}"]`);
+        if (urlInput) urlInput.value = data.url;
+        if (thumb){ thumb.src = data.url; thumb.style.display = 'block'; }
+      } else {
+        alert('Upload failed: ' + (data.error || 'unknown error'));
+      }
+    })
+    .catch(() => alert('Upload failed — is the server still running?'))
+    .finally(() => { btn.textContent = origLabel; btn.disabled = false; e.target.value = ''; });
+}
+function onMcToggle(e){
+  const {ci, qi} = e.target.dataset;
+  builderData[ci].clues[qi].type = e.target.checked ? 'mc' : 'text';
+  renderBuilder();
+}
+function onChoiceChange(e){
+  const {ci, qi, choiceidx} = e.target.dataset;
+  builderData[ci].clues[qi].choices[choiceidx] = e.target.value;
+}
+function onCorrectIndexChange(e){
+  const {ci, qi} = e.target.dataset;
+  builderData[ci].clues[qi].correctIndex = Math.max(0, Math.min(3, Number(e.target.value)-1));
+}
+
+function escapeHtml(s){ return (s||'').replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+function escapeAttr(s){ return (s||'').replace(/"/g,'&quot;'); }
+
+function currentBoardObject(){
+  return { theme: currentTheme, customTheme: currentTheme === 'custom' ? customTheme : undefined, categories: builderData };
+}
+
+document.getElementById('saveBoardBtn').addEventListener('click', () => {
+  const board = currentBoardObject();
+  ws.send(JSON.stringify({ type: 'set-board', board }));
+  localBoard = board;
+  showTab('control');
+});
+
+document.getElementById('resetBtn').addEventListener('click', () => {
+  if (!confirm('Reset the whole game (board, scores, everyone)?')) return;
+  ws.send(JSON.stringify({ type: 'reset-game' }));
+  builderData = Array.from({length:5}, (_,i) => blankCategory('Category ' + (i+1)));
+  renderBuilder();
+  showTab('builder');
+});
+
+document.getElementById('exportBtn').addEventListener('click', () => {
+  const board = currentBoardObject();
+  const blob = new Blob([JSON.stringify(board, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'jeopardy-board.json';
+  a.click();
+  URL.revokeObjectURL(url);
+});
+document.getElementById('importBtn').addEventListener('click', () => document.getElementById('importFile').click());
+document.getElementById('importFile').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const board = JSON.parse(reader.result);
+      if (!board.categories) throw new Error('no categories');
+      builderData = board.categories;
+      builderData.forEach(c => {
+        if (c.icon === undefined) c.icon = '';
+        c.clues.forEach(clue => { if (clue.answer === undefined) clue.answer = ''; });
+      });
+      currentTheme = board.theme || 'classic';
+      if (board.customTheme) customTheme = Object.assign({}, customTheme, board.customTheme);
+      themeSelect.value = currentTheme;
+      applyCurrentTheme();
+      renderBuilder();
+    } catch (err) {
+      alert('That file doesn\'t look like a valid board export.');
+    }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+});
+
+// ---------- CONTROL ----------
+function renderControl(){
+  if (!latestState) return;
+  const board = localBoard || latestState.board;
+  const playerCount = Object.keys(latestState.players || {}).length;
+  document.getElementById('playerCount').textContent = playerCount + ' contestant' + (playerCount===1?'':'s') + ' connected';
+
+  const grid = document.getElementById('boardGrid');
+  const showingClue = latestState.phase === 'clue' && latestState.active && board;
+  grid.style.display = showingClue ? 'none' : 'grid';
+  document.getElementById('controlHeading').style.display = showingClue ? 'none' : 'block';
+  grid.innerHTML = '';
+  if (!board){
+    grid.innerHTML = '<p class="hint">No board saved yet — build one first.</p>';
+  } else if (!showingClue) {
+    board.categories.forEach((cat) => {
+      const h = document.createElement('div');
+      h.className = 'board-cat-header';
+      h.innerHTML = `${cat.icon ? `<span>${escapeHtml(cat.icon)}</span>` : ''}<span>${escapeHtml(cat.name)}</span>`;
+      grid.appendChild(h);
+    });
+    for (let qi = 0; qi < 5; qi++){
+      board.categories.forEach((cat, ci) => {
+        const clue = cat.clues[qi];
+        const cell = document.createElement('div');
+        cell.className = 'board-cell' + (clue.answered ? ' answered' : '');
+        cell.textContent = clue.answered ? '' : ('$' + clue.value);
+        if (!clue.answered){
+          cell.addEventListener('click', () => {
+            SFX.reveal();
+            ws.send(JSON.stringify({ type: 'select-clue', catIdx: ci, clueIdx: qi }));
+          });
+        }
+        grid.appendChild(cell);
+      });
+    }
+  }
+
+  const panel = document.getElementById('cluePanel');
+  if (showingClue){
+    panel.style.display = 'block';
+    const { catIdx, clueIdx } = latestState.active;
+    const clue = board.categories[catIdx].clues[clueIdx];
+    document.getElementById('clueValueLabel').textContent = board.categories[catIdx].name + ' — $' + clue.value;
+    document.getElementById('clueText').textContent = clue.text || '';
+    const img = document.getElementById('clueImage');
+    if (clue.image){ img.src = clue.image; img.style.display = 'block'; } else { img.style.display = 'none'; }
+    const list = document.getElementById('choiceList');
+    const answerBox = document.getElementById('answerBox');
+    const revealBtn = document.getElementById('revealAnswerBtn');
+    const hasAnswerContent = clue.type === 'mc' || !!(clue.answer && clue.answer.trim());
+
+    if (clue.type === 'mc'){
+      list.style.display = 'block';
+      if (answerRevealed){
+        list.innerHTML = clue.choices.map((c,idx) => `<li class="${idx===clue.correctIndex?'correct':''}">${escapeHtml(c)}${idx===clue.correctIndex?' ✓':''}</li>`).join('');
+      } else {
+        list.innerHTML = clue.choices.map((c) => `<li>${escapeHtml(c)}</li>`).join('');
+      }
+    } else {
+      list.style.display = 'none';
+    }
+
+    if (clue.answer && clue.answer.trim()){
+      if (answerRevealed){
+        answerBox.style.display = 'block';
+        answerBox.textContent = '✓ ' + clue.answer;
+      } else {
+        answerBox.style.display = 'none';
+      }
+    } else {
+      answerBox.style.display = 'none';
+    }
+
+    revealBtn.style.display = (hasAnswerContent && !answerRevealed) ? 'inline-block' : 'none';
+    const banner = document.getElementById('buzzBanner');
+    const buzzEl = document.getElementById('buzzStatus');
+    if (latestState.buzzedId){
+      const p = latestState.players[latestState.buzzedId];
+      banner.style.display = 'flex';
+      const av = document.getElementById('buzzAvatar');
+      if (p && p.avatar){ av.src = p.avatar; av.style.display = 'block'; } else { av.style.display = 'none'; }
+      document.getElementById('buzzBannerText').textContent = '🔔 ' + (p ? p.name : '???') + ' buzzed in!';
+      buzzEl.textContent = '';
+    } else {
+      banner.style.display = 'none';
+      buzzEl.textContent = clue.type === 'mc' ? 'Multiple choice — no buzzer needed, awaiting picks.' : 'Waiting for a buzz...';
+    }
+  } else {
+    panel.style.display = 'none';
+  }
+
+  const sb = document.getElementById('scoreboard');
+  sb.innerHTML = '';
+  const players = latestState.players || {};
+  const currentClueValue = (latestState.phase === 'clue' && latestState.active && board) ? board.categories[latestState.active.catIdx].clues[latestState.active.clueIdx].value : 0;
+  Object.entries(players).forEach(([id, p]) => {
+    const card = document.createElement('div');
+    card.className = 'player-card';
+    card.innerHTML = `
+      <button class="kick-btn" data-id="${id}" title="Remove player">✕</button>
+      <div class="name">${p.avatar ? `<img class="avatar" src="${escapeAttr(p.avatar)}">` : ''}<span class="dot ${p.connected === false ? 'offline':''}"></span>${escapeHtml(p.name)}</div>
+      <div class="score">${p.score}</div>
+      <div class="score-btns">
+        <button class="plus" data-id="${id}" data-delta="${currentClueValue || 100}" data-good="1">+${currentClueValue || 100}</button>
+        <button class="minus" data-id="${id}" data-delta="${-(currentClueValue || 100)}" data-bad="1">-${currentClueValue || 100}</button>
+        <button class="custom" data-id="${id}" data-custom="1">+/- other</button>
+      </div>`;
+    sb.appendChild(card);
+  });
+  sb.querySelectorAll('button[data-delta]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (btn.dataset.good) SFX.correct(); else if (btn.dataset.bad) SFX.wrong();
+      ws.send(JSON.stringify({ type: 'award', playerId: btn.dataset.id, delta: Number(btn.dataset.delta) }));
+    });
+  });
+  sb.querySelectorAll('button[data-custom]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const val = prompt('Points to add (use a negative number to subtract):', '100');
+      if (val === null) return;
+      const n = Number(val);
+      if (!isNaN(n)){
+        if (n >= 0) SFX.correct(); else SFX.wrong();
+        ws.send(JSON.stringify({ type: 'award', playerId: btn.dataset.id, delta: n }));
+      }
+    });
+  });
+  sb.querySelectorAll('.kick-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (confirm('Remove this player from the game?')) ws.send(JSON.stringify({ type: 'kick-player', playerId: btn.dataset.id }));
+    });
+  });
+}
+
+document.getElementById('revealAnswerBtn').addEventListener('click', () => {
+  answerRevealed = true;
+  SFX.correct();
+  renderControl();
+});
+document.getElementById('unlockBtn').addEventListener('click', () => {
+  ws.send(JSON.stringify({ type: 'unlock-buzzers' }));
+});
+document.getElementById('closeClueBtn').addEventListener('click', () => {
+  ws.send(JSON.stringify({ type: 'close-clue' }));
+});
+document.getElementById('resetBtnControl').addEventListener('click', () => {
+  if (!confirm('Reset the whole game (board, scores, everyone)?')) return;
+  ws.send(JSON.stringify({ type: 'reset-game' }));
+  builderData = Array.from({length:5}, (_,i) => blankCategory('Category ' + (i+1)));
+  renderBuilder();
+  showTab('builder');
+});
+
+function showTab(which){
+  document.getElementById('builderView').style.display = which === 'builder' ? 'block' : 'none';
+  document.getElementById('controlView').style.display = which === 'control' ? 'block' : 'none';
+  document.getElementById('tabBuilder').classList.toggle('active', which === 'builder');
+  document.getElementById('tabControl').classList.toggle('active', which === 'control');
+}
+document.getElementById('tabBuilder').addEventListener('click', () => showTab('builder'));
+document.getElementById('tabControl').addEventListener('click', () => showTab('control'));
+
+renderBuilder();
+showTab('builder');
+</script>
+</body>
+</html>

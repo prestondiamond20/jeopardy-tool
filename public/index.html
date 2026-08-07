@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Jeopardy — Contestant</title>
+<style>
+  :root{
+    --bg:#071433; --panel:#0b1d4d; --panel-border:#22306b;
+    --accent:#f0c14b; --accent-dim:#c79a2e; --text:#f5f7ff;
+    --muted:#8fa0d6; --good:#3fb27f; --bad:#e0554e;
+    --display-font:Georgia,'Times New Roman',serif; --body-font:'Trebuchet MS',Verdana,sans-serif;
+    --radius:10px;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;}
+  html{background:var(--bg);}
+  body{
+    margin:0;background:var(--bg);color:var(--text);font-family:var(--body-font);
+    display:flex;flex-direction:column;overflow:hidden;user-select:none;
+    transition:background .4s ease;
+  }
+  body.flash-good{background:radial-gradient(circle at 50% 40%, #1a5c3c, var(--bg) 70%);}
+  body.flash-bad{background:radial-gradient(circle at 50% 40%, #4a1a1a, var(--bg) 70%);}
+
+  header{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;flex-shrink:0;}
+  .who{font-size:14px;color:var(--muted);}
+  .who b{color:var(--accent);}
+  .score-pill{background:var(--panel);border:1px solid var(--panel-border);border-radius:20px;padding:6px 16px;font-weight:bold;color:var(--accent);font-size:16px;}
+  #muteBtn{background:none;border:1px solid var(--muted);color:var(--muted);border-radius:20px;padding:4px 10px;font-size:12px;cursor:pointer;}
+  .leave-link{font-size:11px;color:var(--muted);text-decoration:underline;background:none;border:none;cursor:pointer;padding:0;}
+  .header-right{display:flex;align-items:center;gap:8px;}
+
+  /* Join screen */
+  #joinBox{
+    flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    padding:24px;text-align:center;position:relative;
+    background:
+      radial-gradient(circle at 50% 15%, rgba(240,193,75,.10), transparent 55%),
+      radial-gradient(circle at 20% 90%, rgba(143,160,214,.08), transparent 50%);
+  }
+  #joinBox .badge{
+    font-size:44px;margin-bottom:6px;filter:drop-shadow(0 4px 12px rgba(240,193,75,.35));
+    animation:floaty 3.5s ease-in-out infinite;
+  }
+  @keyframes floaty{0%,100%{transform:translateY(0);}50%{transform:translateY(-6px);}}
+  #joinBox h1{font-family:var(--display-font);color:var(--accent);font-size:28px;margin:0 0 6px;letter-spacing:.02em;}
+  #joinBox .tagline{color:var(--muted);font-size:13px;margin:0 0 30px;letter-spacing:.03em;text-transform:uppercase;}
+  #joinBox .card{
+    background:var(--panel);border:1px solid var(--panel-border);border-radius:var(--radius);
+    padding:28px 24px;width:100%;max-width:340px;box-shadow:0 12px 32px rgba(0,0,0,.35);
+    animation:pop .35s ease;
+  }
+  #joinBox .card p{margin:0 0 14px;color:var(--muted);font-size:13px;}
+  .avatar-picker{
+    width:88px;height:88px;border-radius:50%;margin:0 auto 16px;
+    border:2px dashed var(--panel-border);background:rgba(0,0,0,.2);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    font-size:26px;cursor:pointer;overflow:hidden;color:var(--muted);
+  }
+  .avatar-picker span{font-size:9px;line-height:1.2;margin-top:2px;max-width:70px;text-align:center;}
+  .avatar-picker img{width:100%;height:100%;object-fit:cover;}
+  .my-avatar{width:26px;height:26px;border-radius:50%;object-fit:cover;border:1px solid var(--panel-border);}
+  #joinBox input{
+    font-size:18px;padding:14px 16px;border-radius:10px;border:1px solid var(--panel-border);
+    width:100%;text-align:center;margin-bottom:16px;background:rgba(0,0,0,.25);color:var(--text);
+    transition:border-color .15s ease;
+  }
+  #joinBox input:focus{outline:none;border-color:var(--accent);}
+  button.primary{
+    background:var(--accent);color:#111;border:none;border-radius:10px;padding:16px 30px;
+    font-weight:bold;font-size:17px;cursor:pointer;width:100%;
+    box-shadow:0 4px 0 var(--accent-dim);transition:transform .06s ease, box-shadow .06s ease;
+  }
+  button.primary:active{transform:translateY(3px);box-shadow:0 1px 0 var(--accent-dim);}
+
+  #reconnecting{flex:1;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:16px;}
+
+  /* Game screen */
+  #gameBox{display:none;flex:1;flex-direction:column;min-height:0;}
+  #stage{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;gap:20px;min-height:0;text-align:center;}
+
+  .waiting-pulse{width:70px;height:70px;border-radius:50%;background:var(--accent-dim);opacity:.5;animation:pulseDot 1.6s ease-in-out infinite;}
+  @keyframes pulseDot{0%,100%{transform:scale(.85);opacity:.35;}50%{transform:scale(1.05);opacity:.7;}}
+  #waitingMsg{color:var(--muted);font-size:16px;}
+
+  .clue-card{background:var(--panel);border:2px solid var(--accent);border-radius:var(--radius);padding:22px;width:100%;max-width:480px;animation:pop .3s ease;flex-shrink:0;max-height:46vh;overflow-y:auto;}
+  @keyframes pop{from{transform:scale(.95);opacity:0;}to{transform:scale(1);opacity:1;}}
+  .clue-card .value{color:var(--accent);font-weight:bold;margin-bottom:10px;font-size:14px;letter-spacing:.02em;text-transform:uppercase;}
+  .clue-card img{max-width:100%;max-height:22vh;border-radius:8px;margin-bottom:12px;object-fit:contain;}
+  .clue-card .text{font-size:19px;line-height:1.45;font-family:var(--display-font);}
+
+  #buzzWrap{position:relative;width:200px;height:200px;flex-shrink:0;}
+  #buzzBtn{
+    width:100%;height:100%;border-radius:50%;border:none;cursor:pointer;
+    background:radial-gradient(circle at 35% 30%, #ff6b5e, var(--bad) 65%);
+    color:white;font-weight:bold;font-size:26px;font-family:var(--display-font);
+    box-shadow:0 8px 0 #9a2e28, 0 10px 24px rgba(0,0,0,.4);
+    transition:transform .06s ease, box-shadow .06s ease;
+    letter-spacing:.05em;
+  }
+  #buzzBtn:active{transform:translateY(6px);box-shadow:0 2px 0 #9a2e28, 0 4px 14px rgba(0,0,0,.4);}
+  #buzzBtn:disabled{
+    background:radial-gradient(circle at 35% 30%, #555, #333 65%);
+    box-shadow:0 8px 0 #1c1c1c, 0 10px 24px rgba(0,0,0,.3);
+    color:#888;cursor:default;
+  }
+  #buzzWrap.pulsing #buzzBtn{animation:buzzPulse 1.4s ease-in-out infinite;}
+  @keyframes buzzPulse{0%,100%{box-shadow:0 8px 0 #9a2e28, 0 10px 24px rgba(0,0,0,.4), 0 0 0 0 rgba(224,85,78,.5);}50%{box-shadow:0 8px 0 #9a2e28, 0 10px 24px rgba(0,0,0,.4), 0 0 0 22px rgba(224,85,78,0);}}
+
+  .result-banner{font-family:var(--display-font);font-size:28px;font-weight:bold;animation:pop .3s ease;}
+  .result-banner.good{color:var(--good);}
+  .result-banner.bad{color:var(--muted);}
+  .result-sub{font-size:14px;color:var(--muted);}
+</style>
+</head>
+<body data-theme="classic">
+
+<header>
+  <div class="who"><img class="my-avatar" id="myAvatarImg" style="display:none;"> You: <b id="myName"></b></div>
+  <div class="header-right">
+    <span class="score-pill" id="myScore">0</span>
+    <button id="muteBtn">🔊</button>
+  </div>
+</header>
+
+<div id="reconnecting" style="display:none;">Reconnecting...</div>
+
+<div id="joinBox">
+  <div class="badge">🏆</div>
+  <h1>Jeopardy</h1>
+  <div class="tagline">Contestant Buzzer</div>
+  <div class="card">
+    <div class="avatar-picker" id="avatarPreview">📷<span>Add photo (optional)</span></div>
+    <input type="file" id="avatarFile" accept="image/*" style="display:none;">
+    <p>Enter your name to join:</p>
+    <input id="nameInput" type="text" maxlength="24" placeholder="Your name">
+    <button class="primary" id="joinBtn">Join Game</button>
+  </div>
+</div>
+
+<div id="gameBox">
+  <div id="stage"></div>
+  <div style="text-align:center;padding-bottom:10px;">
+    <button class="leave-link" id="leaveBtn">not you? leave</button>
+  </div>
+</div>
+
+<script src="theme.js"></script>
+<script src="sound.js"></script>
+<script>
+const ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host);
+applyTheme('classic');
+let myId = null;
+let myName = '';
+let myAvatarUrl = '';
+let pendingAvatarFile = null;
+let latestState = null;
+let iBuzzedThisClue = false;
+
+const savedId = localStorage.getItem('jeopardy_player_id');
+const savedName = localStorage.getItem('jeopardy_player_name');
+
+document.getElementById('muteBtn').addEventListener('click', () => {
+  SFX.setMuted(!SFX.isMuted());
+  document.getElementById('muteBtn').textContent = SFX.isMuted() ? '🔇' : '🔊';
+});
+
+document.getElementById('leaveBtn').addEventListener('click', () => {
+  if (!confirm('Leave the game and clear your saved spot on this device?')) return;
+  localStorage.removeItem('jeopardy_player_id');
+  localStorage.removeItem('jeopardy_player_name');
+  location.reload();
+});
+
+document.getElementById('avatarPreview').addEventListener('click', () => document.getElementById('avatarFile').click());
+document.getElementById('avatarFile').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  pendingAvatarFile = file;
+  const reader = new FileReader();
+  reader.onload = () => { document.getElementById('avatarPreview').innerHTML = `<img src="${reader.result}">`; };
+  reader.readAsDataURL(file);
+});
+
+document.getElementById('joinBtn').addEventListener('click', () => {
+  const name = document.getElementById('nameInput').value.trim();
+  if (!name) return;
+  myName = name;
+  SFX.join();
+  const btn = document.getElementById('joinBtn');
+  btn.disabled = true; btn.textContent = 'Joining...';
+  const doJoin = (avatarUrl) => {
+    myAvatarUrl = avatarUrl || '';
+    ws.send(JSON.stringify({ type: 'player-join', name, avatar: myAvatarUrl }));
+  };
+  if (pendingAvatarFile){
+    const fd = new FormData();
+    fd.append('image', pendingAvatarFile);
+    fetch('/upload', { method: 'POST', body: fd })
+      .then(r => r.json())
+      .then(data => doJoin(data.url))
+      .catch(() => doJoin(''));
+  } else {
+    doJoin('');
+  }
+});
+document.getElementById('nameInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') document.getElementById('joinBtn').click();
+});
+
+ws.addEventListener('open', () => {
+  if (savedId && savedName){
+    myName = savedName;
+    document.getElementById('joinBox').style.display = 'none';
+    document.getElementById('reconnecting').style.display = 'flex';
+    ws.send(JSON.stringify({ type: 'player-rejoin', id: savedId, name: savedName }));
+  }
+});
+
+ws.addEventListener('message', (evt) => {
+  const msg = JSON.parse(evt.data);
+  if (msg.type === 'joined'){
+    myId = msg.id;
+    localStorage.setItem('jeopardy_player_id', myId);
+    localStorage.setItem('jeopardy_player_name', myName);
+    document.getElementById('reconnecting').style.display = 'none';
+    document.getElementById('joinBox').style.display = 'none';
+    document.getElementById('gameBox').style.display = 'flex';
+    document.getElementById('myName').textContent = myName;
+    if (myAvatarUrl){
+      const img = document.getElementById('myAvatarImg');
+      img.src = myAvatarUrl; img.style.display = 'inline-block';
+    }
+  } else if (msg.type === 'state'){
+    const prevPhase = latestState ? latestState.phase : null;
+    const prevBuzzed = latestState ? latestState.buzzedId : null;
+    latestState = msg.state;
+    if (latestState.board){
+      if (latestState.board.theme === 'custom') applyTheme('custom', latestState.board.customTheme);
+      else applyTheme(latestState.board.theme || 'classic');
+    }
+    if (latestState.phase === 'clue' && prevPhase !== 'clue') iBuzzedThisClue = false;
+    if (latestState.buzzedId && latestState.buzzedId !== prevBuzzed && latestState.buzzedId !== myId) {
+      SFX.buzz();
+    }
+    render();
+  }
+});
+
+function render(){
+  if (!latestState) return;
+  if (myId && latestState.players[myId]){
+    document.getElementById('myScore').textContent = latestState.players[myId].score;
+    const serverAvatar = latestState.players[myId].avatar;
+    if (serverAvatar && serverAvatar !== myAvatarUrl){
+      myAvatarUrl = serverAvatar;
+      const img = document.getElementById('myAvatarImg');
+      img.src = myAvatarUrl; img.style.display = 'inline-block';
+    }
+  }
+  const stage = document.getElementById('stage');
+  document.body.classList.remove('flash-good', 'flash-bad');
+  if (!myId){ stage.innerHTML = ''; return; }
+
+  if (latestState.phase !== 'clue' || !latestState.active || !latestState.board){
+    stage.innerHTML = `<div class="waiting-pulse"></div><div id="waitingMsg">Waiting for the host to reveal a clue...</div>`;
+    return;
+  }
+
+  const { catIdx, clueIdx } = latestState.active;
+  const cat = latestState.board.categories[catIdx];
+  const clue = cat.clues[clueIdx];
+
+  const clueHtml = `<div class="clue-card">
+      <div class="value">${cat.icon ? escapeHtml(cat.icon) + ' ' : ''}${escapeHtml(cat.name)} — $${clue.value}</div>
+      ${clue.image ? `<img src="${clue.image}">` : ''}
+      <div class="text">${escapeHtml(clue.text || '')}</div>
+    </div>`;
+
+  if (latestState.buzzedId === myId){
+    document.body.classList.add('flash-good');
+    stage.innerHTML = clueHtml + `
+      <div class="result-banner good">🔔 You buzzed in!</div>
+      <div class="result-sub">Tell the host your answer out loud.</div>`;
+  } else if (latestState.buzzedId){
+    const p = latestState.players[latestState.buzzedId];
+    document.body.classList.add('flash-bad');
+    stage.innerHTML = clueHtml + `
+      <div id="buzzWrap"><button id="buzzBtn" disabled>BUZZED</button></div>
+      <div class="result-sub">${escapeHtml(p ? p.name : 'Someone')} buzzed in first.</div>`;
+  } else {
+    stage.innerHTML = clueHtml + `<div id="buzzWrap" class="pulsing"><button id="buzzBtn">BUZZ</button></div>`;
+    const buzzBtn = document.getElementById('buzzBtn');
+    buzzBtn.addEventListener('click', () => {
+      if (iBuzzedThisClue) return;
+      iBuzzedThisClue = true;
+      SFX.buzz();
+      if (navigator.vibrate) navigator.vibrate(60);
+      ws.send(JSON.stringify({ type: 'buzz' }));
+    });
+  }
+}
+
+function escapeHtml(s){ return (s||'').replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+</script>
+</body>
+</html>
